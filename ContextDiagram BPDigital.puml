@@ -1,0 +1,33 @@
+@startuml BPDigital
+
+!includeurl https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Context.puml
+LAYOUT_LEFT_RIGHT()
+title BP - Banca Digital (Contexto)
+
+Person(cliente, "Cliente", "Usa SPA web y App móvil para operar.")
+System_Boundary(bp, "BP Digital") {
+ System(banca, "Plataforma BP", "Autenticación, consultas, transferencias y pagos.")
+}
+
+System_Ext(idp, "Proveedor de identidad", "Autenticación de usuarios y emisión de tokens")
+System_Ext(core, "Core Bancario", "Cuentas, saldos, movimientos y órdenes.")
+System_Ext(comp, "Sistema Complementario bancario", "Datos ampliados del cliente.")
+System_Ext(notif1, "Notificaciones #1", "SMS/Email")
+System_Ext(notif2, "Notificaciones #2", "Notificaciones Móviles")
+System_Ext(bio, "Biometría Facial", "Onboarding con reconocimiento facial.")
+System_Ext(audit, "Auditoría/Logs", "Registro, búsqueda y retención de eventos.")
+System_Ext(ibn, "Red Interbancaria", "Sistema interbancario de envío de transacciones")
+
+Rel(cliente, banca, "Accede y utiliza", "HTTPS")
+Rel(banca, idp, "Solicita autenticación y recibe tokens", "HTTPS")
+Rel_D(banca, core, "Consulta saldos/movimientos y envía órdenes", "API segura")
+Rel(banca, comp, "Recupera datos complementarios del cliente", "API segura")
+Rel(banca, notif1, "Envía alertas de movimientos", "SMS/Email")
+Rel(banca, notif2, "Envía confirmaciones a la app", "Push")
+Rel(banca, bio, "Realiza onboarding y verifica identidad", "SDK/API")
+Rel(banca, audit, "Emite eventos firmados de acceso y operación", "HTTPS/Eventos")
+Rel(core, ibn, "Liquidación interbancaria", "API segura")
+
+SHOW_LEGEND()
+
+@enduml

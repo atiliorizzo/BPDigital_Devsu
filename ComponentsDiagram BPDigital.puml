@@ -1,0 +1,114 @@
+@startuml AuthService-Components
+!includeurl https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Component.puml
+LAYOUT_TOP_DOWN()
+title Auth Service - Componentes
+
+Container_Boundary(auth, "Auth Service") {
+ ' Núcleo
+ Component(api, "Auth API Controller", "API", "Endpoints: login, refresh, logout, introspect")
+ Component(app, "Auth Application Service","Orquestación","Coordina login/refresh/logout; políticas")
+ Component(validator,"Token Validator", "Lib interna", "Valida firma, audiencia, scopes, expiración")
+ Component(session, "Session Manager", "Lib interna", "Sesiones y refresh (TTL, revocación)")
+ Component(policy, "MFA & Device Policy", "Reglas", "MFA, device binding, riesgo/adaptativo")
+
+ ' Adaptadores
+ Component(oidc, "OIDC Client Adapter", "HTTP", "Intercambia código por tokens; /token; /userinfo")
+ Component(redis, "Redis Adapter", "Cache", "Lee/escribe sesión y refresh (TTL)")
+ Component(auditp, "Audit Publisher", "Eventos","Publica eventos de acceso/autenticación")
+}
+' Relaciones internas
+Rel(api, app, "Invoca casos de uso")
+Rel(app, validator, "Valida tokens")
+Rel(app, session, "Crea/lee/revoca sesión/refresh")
+Rel(app, policy, "Evalúa MFA / device")
+Rel(app, oidc, "Solicita/renueva tokens")
+Rel(session, redis, "GET/SET sesión y refresh")
+Rel(app, auditp, "Eventos de login/logout/refresh")
+
+' Sistemas externos
+System_Ext(idp, "Proveedor de Identidad", "Login y emisión de tokens")
+ContainerDb(rds, "Redis", "In-memory", "Sesiones y refresh")
+Rel(oidc, idp, "Autenticación y tokens", "API Segura")
+Rel(redis, rds, "Operaciones de cache", "API Segura")
+
+@enduml
+
+
+@startuml AccountsService-Components
+!includeurl https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Component.puml
+LAYOUT_TOP_DOWN()
+title Accounts Service - Componentes
+
+Container_Boundary(acc, "Accounts Service") {
+ ' Núcleo
+ Component(api, "Accounts API Controller", "API", "GET saldo, GET movimientos")
+ Component(app, "Accounts Application Service", "Orquestación", "Coordina saldo/movimientos")
+ Component(cachem, "Cache Manager", "Lib interna", "Lecturas con TTL; invalidación")
+ Component(mapper, "DTO/Contract Mapper", "Lib interna", "Mapea Core → DTO (paginación, máscaras)")
+
+ ' Adaptadores
+ Component(coreadp, "Core Banking Adapter", "API Segura", "Consulta saldos y movimientos en el Core")
+ Component(compadp, "Complementary Adapter", "API Segura", "Datos complementarios de cliente")
+ Component(redis, "Redis Adapter", "Cache", "Cache de lecturas (saldo/mov)")
+ Component(auditp, "Audit Publisher", "Eventos", "Eventos de consulta (acceso/operación)")
+}
+
+' Relaciones internas
+Rel(api, app, "Invoca casos de uso")
+Rel(app, cachem, "Lee/Escribe cache")
+Rel(app, coreadp, "Consulta saldos/movimientos")
+Rel(app, compadp, "Obtiene datos complementarios")
+Rel(app, mapper, "Transforma a DTO de front")
+Rel(cachem, redis, "GET/SET con TTL")
+Rel(app, auditp, "Publica eventos mínimos")
+
+' Sistemas externos
+System_Ext(core, "Core Bancario", "Cuentas y movimientos")
+System_Ext(comp, "Sistema Complementario", "Datos cliente")
+ContainerDb(rds, "Redis", "In-memory", "Lecturas cacheadas")
+Rel(coreadp, core, "Consultas", "API Segura")
+Rel(compadp, comp, "Consultas", "API Segura")
+Rel(redis, rds, "Operaciones de cache", "API Segura")
+
+@enduml
+
+
+@startuml TransfersService-Components
+!includeurl https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Component.puml
+LAYOUT_TOP_DOWN()
+title Transfers Service - Componentes
+
+Container_Boundary(trf, "Transfers Service") {
+ ' Núcleo
+ Component(api, "Transfers API Controller", "API", "POST transfer, GET status, POST schedule")
+ Component(app, "Transfers Application Service","Orquestación", "Crea transferencia, valida reglas, invoca Core")
+ Component(domain, "Domain Model", "Reglas", "Transfer, Account, LimitPolicy, estados")
+ Component(idemp, "Idempotency Manager", "Lib interna", "Evita duplicados por requestId")
+
+ ' Adaptadores
+ Component(dbad, "DB Adapter", "Persistencia", "DB transaccional (órdenes/estado/idempotencia)")
+ Component(coreadp, "Core Banking Adapter", "API Segura", "Envía órdenes internas al Core")
+ Component(ext, "External Bank Adapter", "API Segura", "Órdenes a red interbancaria (si aplica)")
+ Component(pub, "Event Publisher", "Eventos", "CREATED / CONFIRMED / FAILED")
+}
+
+' Relaciones internas
+Rel(api, app, "Invoca casos de uso")
+Rel(app, idemp, "Valida idempotencia")
+Rel(app, domain, "Aplica reglas de negocio")
+Rel(app, dbad, "Guarda/lee órdenes y estados")
+Rel(app, coreadp, "Ordenes internas al Core")
+Rel(app, ext, "Ordenes interbancarias (opcional)")
+Rel(app, pub, "Publica eventos de estado")
+
+' Sistemas externos
+ContainerDb(dbtrx, "DB Transaccional", "SQL", "Órdenes, estado, idempotencia")
+System_Ext(core, "Core Bancario", "Órdenes y conciliación")
+System_Ext(ibn, "Red Interbancaria", "Transferencias entre bancos")
+Rel(dbad, dbtrx, "INSERT/UPDATE", "API Segura")
+Rel(coreadp, core, "Órdenes internas", "API Segura")
+Rel(ext, ibn, "Órdenes interb.", "API Segura")
+
+@enduml
+
+

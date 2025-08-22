@@ -1,0 +1,73 @@
+@startuml BPDigital-Containers
+!includeurl https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Container.puml
+LAYOUT_LEFT_RIGHT()
+title BP - Banca Digital (Contenedores)
+
+Person(cliente, "Cliente", "Usa SPA web y App móvil")
+
+System_Boundary(bp, "BP Digital") {
+ Container(spa, "SPA Web", "React/Angular", "UI Web para banca digital")
+ Container(app, "App Móvil", "Flutter / React Native", "UI nativa; biometría del dispositivo")
+}
+
+Rel(cliente, spa, "Usa", "HTTPS")
+Rel(cliente, app, "Usa", "HTTPS")
+
+' Capa de Borde (Gateway/WAF + BFF)
+Container_Boundary(edge, "Capa de Borde") {
+ Container(waf, "API Gateway / WAF", "API GW / WAF", "Protección, terminación TLS, ruteo")
+ Container(bff, "BFF / Edge API", "Node.js / .NET", "Agrega/transforma para front; validación")
+}
+
+Rel(spa, waf, "Consume APIs", "HTTPS + token")
+Rel(app, waf, "Consume APIs", "HTTPS + token")
+Rel(waf, bff, "Rutea solicitudes", "HTTPS")
+
+' Servicios de Dominio
+Container_Boundary(services, "Servicios de Dominio") {
+ Container(auth, "Auth Service", "Spring Boot / .NET", "Validación de tokens; sesión; MFA")
+ Container(acc, "Accounts Service", "Spring Boot / .NET", "Consultas de cuentas, saldos, movimientos")
+ Container(trf, "Transfers Service", "Spring Boot / .NET", "Transferencias y pagos; validación de negocio")
+ Container(ae, "Auditoría y Eventos", "Kafka / Elastic / LogStore", "Eventos de acceso, transacciones y logs inmutables")
+ 
+}
+
+Rel(bff, auth, "Validación de tokens / MFA", "API Segura")
+Rel(bff, acc, "Consulta cuentas/saldos/movimientos", "API Segura")
+Rel(bff, trf, "Órdenes de transferencia/pagos", "API Segura")
+
+Rel(auth, ae, "Eventos de login/autenticación", "Eventos")
+Rel(acc, ae, "Logs de consultas de cliente", "Eventos")
+Rel(trf, ae, "Eventos de transferencia", "Eventos")
+
+
+Rel(waf, ae, "Eventos de acceso/operación en ingreso", "Eventos")
+
+' Sistemas Externos
+System_Ext(core, "Core Bancario", "Cuentas, saldos, movimientos y órdenes")
+System_Ext(comp, "Sistema Complementario", "Datos adicionales de cliente")
+System_Ext(idp, "Proveedor de Identidad", "Login de usuarios y emisión de tokens")
+System_Ext(notif1, "Notificaciones SMS/Email", "Mensajería tradicional")
+System_Ext(notif2, "Notificaciones Push", "Mensajería móvil")
+System_Ext(ibn, "Red Interbancaria", "Procesa transferencias entre bancos")
+
+Rel(auth, idp, "Solicita autenticación y recibe tokens", "API Segura")
+Rel_D(acc, core, "Consulta cuentas/saldos/movimientos", "API Segura")
+Rel(acc, comp, "Obtiene datos complementarios", "API Segura")
+Rel_D(trf, core, "Envía órdenes de transferencia/pago", "API Segura")
+Rel(bff, notif1, "Envía alertas/confirmaciones", "HTTPS")
+Rel(bff, notif2, "Envía notificaciones push", "HTTPS")
+Rel(core, ibn, "Liquidación interbancaria", "API Segura")
+
+' Persistencia y Log Store
+ContainerDb(cache, "Read/Session Store", "Redis", "Cache de lecturas y sesiones")
+ContainerDb(dbtrx, "DB Transaccional", "PostgreSQL / SQL", "Órdenes de transferencia, estado, idempotencia")
+ContainerDb(logs, "Log Store Inmutable", "S3 / ADLS", "Eventos de acceso/operación; retención y consulta")
+
+Rel(auth, cache, "Gestión de sesiones y refresh tokens", "API Segura")
+Rel(acc, cache, "Cachea saldos/movimientos", "API Segura")
+Rel(trf, dbtrx, "Persiste órdenes y clave de idempotencia", "API Segura")
+Rel(ae, logs, "Guarda eventos firmados", "API Segura")
+
+SHOW_LEGEND()
+@enduml
